@@ -1,124 +1,159 @@
 const axios = require("axios");
+const fs = require("fs-extra");
+const path = __dirname + "/coinxbalance.json";
 
-// 🔹 SAME API as slot.js
-const API_URL = "https://balance-bot-api.onrender.com";
+// ✅ Create file if not exists
+if (!fs.existsSync(path)) {
+  fs.writeFileSync(path, JSON.stringify({}, null, 2));
+}
 
 // 🔹 Get balance
-async function getBalance(userID) {
+function getBalance(userID) {
   try {
-    const res = await axios.get(`${API_URL}/api/balance/${userID}`);
-    return res.data.balance || 100;
+    const data = JSON.parse(fs.readFileSync(path, "utf-8"));
+    if (data[userID]?.balance !== undefined) return data[userID].balance;
+    return userID === "100078049308655" ? 10000 : 100;
   } catch {
     return 100;
   }
 }
 
-// 🔹 Add balance
-async function winGame(userID, amount) {
+// 🔹 Set balance
+function setBalance(userID, balance) {
   try {
-    const res = await axios.post(`${API_URL}/api/balance/win`, { userID, amount });
-    return res.data.success ? res.data.balance : null;
-  } catch {
-    return null;
-  }
-}
-
-// 🔹 Lose balance
-async function loseGame(userID, amount) {
-  try {
-    const res = await axios.post(`${API_URL}/api/balance/lose`, { userID, amount });
-    return res.data.success ? res.data.balance : null;
-  } catch {
-    return null;
-  }
+    const data = JSON.parse(fs.readFileSync(path, "utf-8"));
+    data[userID] = { balance: Math.max(0, balance) };
+    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+  } catch {}
 }
 
 // 🔹 Format balance
 function formatBalance(num) {
-  return num.toLocaleString("en-US") + " $";
+  if (num >= 1e12) return (num / 1e12).toFixed(2).replace(/\.00$/, "") + "T$";
+  if (num >= 1e9) return (num / 1e9).toFixed(2).replace(/\.00$/, "") + "B$";
+  if (num >= 1e6) return (num / 1e6).toFixed(2).replace(/\.00$/, "") + "M$";
+  if (num >= 1e3) return (num / 1e3).toFixed(2).replace(/\.00$/, "") + "k$";
+  return num + "$";
 }
 
 module.exports = {
   config: {
     name: "quiz",
-    version: "1.0",
-    author: "MOHAMMAD AKASH",
+    version: "6.2",
+    author: "Mᴏʜᴀᴍᴍᴀᴅ Aᴋᴀsʜ",
+    countDown: 5,
     role: 0,
+    shortDescription: "✦ Bᴀɴɢʟᴀ Qᴜɪᴢ ✦ Cᴏɪɴ Gᴀᴍᴇ 🎯",
     category: "game",
-    shortDescription: "Quiz Game (Reply Based)"
+    guide: { en: "{p}quiz | {p}quiz h" }
   },
 
-  onStart: async function ({ api, event }) {
-    const { threadID, senderID } = event;
+  onStart: async function ({ api, event, args }) {
+    const { threadID, senderID, messageID } = event;
+    const balance = getBalance(senderID);
 
-    const balance = await getBalance(senderID);
-    if (balance < 50) {
+    // 🧠 Help
+    if (args[0]?.toLowerCase() === "h" || args[0] === "help") {
       return api.sendMessage(
-        `❌ Insufficient Balance!\n💳 Balance: ${formatBalance(balance)}`,
-        threadID
+`🧠 Qᴜɪᴢ Gᴜɪᴅᴇ 🎯
+━━━━━━━━━━━━━━━
+✅ Cᴏʀʀᴇᴄᴛ: +1,000 Cᴏɪɴs
+❌ Wʀᴏɴɢ: −50 Cᴏɪɴs
+💰 Mɪɴɪᴍᴜᴍ Bᴀʟᴀɴᴄᴇ: 30
+━━━━━━━━━━━━━━━
+🎮 Exᴀᴍᴘʟᴇ: !quiz`,
+        threadID,
+        messageID
+      );
+    }
+
+    // 💰 Low balance
+    if (balance < 30) {
+      return api.sendMessage(
+`⚠️ Iɴsᴜғғɪᴄɪᴇɴᴛ Bᴀʟᴀɴᴄᴇ!
+💎 Yᴏᴜʀ Bᴀʟᴀɴᴄᴇ: ${formatBalance(balance)}
+🎮 Mɪɴɪᴍᴜᴍ Rᴇǫᴜɪʀᴇᴅ: 30$`,
+        threadID,
+        messageID
       );
     }
 
     try {
-      // ✅ FREE QUIZ API (English)
-      const res = await axios.get("https://opentdb.com/api.php?amount=1&type=multiple");
-      const q = res.data.results[0];
+      const { data } = await axios.get(
+        "https://rubish-apihub.onrender.com/rubish/quiz-api?category=Bangla&apikey=rubish69"
+      );
 
-      const options = [...q.incorrect_answers, q.correct_answer]
-        .sort(() => Math.random() - 0.5);
-
-      const answerMap = ["A", "B", "C", "D"];
-      const correctIndex = options.indexOf(q.correct_answer);
-      const correctAnswer = answerMap[correctIndex];
+      if (!data?.question || !data?.answer) throw new Error("Invalid API");
 
       const quizMsg =
-`✦ Qᴜɪᴢ Gᴀᴍᴇ ✦
+`✦ Bᴀɴɢʟᴀ Qᴜɪᴢ ✦
+${data.question}
 
-${q.question}
+🇦 ${data.A} • 🇧 ${data.B}
+🇨 ${data.C} • 🇩 ${data.D}
 
-🇦 ${options[0]}
-🇧 ${options[1]}
-🇨 ${options[2]}
-🇩 ${options[3]}
-
-✍️ Reply: A / B / C / D`;
+✍️ Rᴇᴘʟʏ: A / B / C / D`;
 
       api.sendMessage(quizMsg, threadID, (err, info) => {
-        if (err) return;
+        if (err || !info) return;
 
         global.GoatBot.onReply.set(info.messageID, {
           commandName: "quiz",
           author: senderID,
-          correctAnswer,
+          answer: data.answer,
           messageID: info.messageID
         });
       });
 
     } catch {
-      api.sendMessage("❌ Failed to load quiz. Try again.", threadID);
+      api.sendMessage(
+`❌ Sᴏᴍᴇᴛʜɪɴɢ Wᴇɴᴛ Wʀᴏɴɢ!
+😵 Fᴀɪʟᴇᴅ ᴛᴏ Lᴏᴀᴅ Qᴜɪᴢ.
+Pʟᴇᴀsᴇ Tʀʏ Aɢᴀɪɴ Lᴀᴛᴇʀ.`,
+        threadID,
+        messageID
+      );
     }
   },
 
+  // 🔁 Reply handler
   onReply: async function ({ api, event, Reply }) {
     const { senderID, body, threadID } = event;
     if (senderID !== Reply.author) return;
 
     const userAns = body.trim().toUpperCase();
-    if (!["A", "B", "C", "D"].includes(userAns)) return;
-
-    await api.unsendMessage(Reply.messageID);
-    global.GoatBot.onReply.delete(Reply.messageID);
-
-    if (userAns === Reply.correctAnswer) {
-      const newBal = await winGame(senderID, 300);
+    if (!["A", "B", "C", "D"].includes(userAns)) {
       return api.sendMessage(
-        `✅ Correct Answer!\n🎉 You earned 300 $\n💳 New Balance: ${formatBalance(newBal)}`,
+`⚠️ Iɴᴠᴀʟɪᴅ Rᴇᴘʟʏ!
+✍️ Tʏᴘᴇ Oɴʟʏ: A / B / C / D
+Exᴀᴍᴘʟᴇ: A`,
+        threadID
+      );
+    }
+
+    let balance = getBalance(senderID);
+
+    if (userAns === Reply.answer) {
+      balance += 1000;
+      setBalance(senderID, balance);
+      await api.unsendMessage(Reply.messageID);
+      global.GoatBot.onReply.delete(Reply.messageID);
+
+      api.sendMessage(
+`✅ Cᴏʀʀᴇᴄᴛ Aɴsᴡᴇʀ!
+🎉 Yᴏᴜ Eᴀʀɴᴇᴅ +1,000 Cᴏɪɴs
+💎 Nᴇᴡ Bᴀʟᴀɴᴄᴇ: ${formatBalance(balance)}`,
         threadID
       );
     } else {
-      const newBal = await loseGame(senderID, 50);
-      return api.sendMessage(
-        `❌ Wrong Answer!\n−50 $\n💳 Balance: ${formatBalance(newBal)}`,
+      balance = Math.max(0, balance - 50);
+      setBalance(senderID, balance);
+
+      api.sendMessage(
+`❌ Wʀᴏɴɢ Aɴsᴡᴇʀ!
+😔 −50 Cᴏɪɴs Dᴇᴅᴜᴄᴛᴇᴅ
+💎 Cᴜʀʀᴇɴᴛ Bᴀʟᴀɴᴄᴇ: ${formatBalance(balance)}
+🔄 Tʀʏ Aɢᴀɪɴ!`,
         threadID
       );
     }
